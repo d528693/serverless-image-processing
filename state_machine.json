@@ -1,0 +1,58 @@
+{
+  "Comment": "Image Processing Workflow - Resizes images uploaded to S3",
+  "StartAt": "ResizeImage",
+  "States": {
+    "ResizeImage": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "IMAGE_RESIZE_LAMBDA_ARN",
+        "Payload": {
+          "sourceBucket.$": "$.sourceBucket",
+          "imageKey.$": "$.imageKey",
+          "destinationBucket.$": "$.destinationBucket"
+        }
+      },
+      "ResultSelector": {
+        "statusCode.$": "$.Payload.statusCode",
+        "body.$": "$.Payload.body",
+        "success.$": "$.Payload.success"
+      },
+      "Next": "CheckSuccess",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "ProcessingFailed"
+        }
+      ]
+    },
+    "CheckSuccess": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.success",
+          "BooleanEquals": true,
+          "Next": "ProcessingSucceeded"
+        }
+      ],
+      "Default": "ProcessingFailed"
+    },
+    "ProcessingSucceeded": {
+      "Type": "Succeed",
+      "Comment": "Image was resized successfully"
+    },
+    "ProcessingFailed": {
+      "Type": "Fail",
+      "Error": "ImageProcessingError",
+      "Cause": "Failed to resize the image"
+    }
+  }
+}
